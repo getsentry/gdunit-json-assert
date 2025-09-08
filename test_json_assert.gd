@@ -1,4 +1,4 @@
-extends SentryTestSuite
+extends GdUnitTestSuite
 ## Tests for JSONAssert class.
 
 
@@ -18,6 +18,10 @@ var fixture := """
 	}
 }
 """
+
+
+static func assert_json(json: Variant) -> JSONAssert:
+	return JSONAssert.new(json)
 
 
 func test_basic_navigation() -> void:
