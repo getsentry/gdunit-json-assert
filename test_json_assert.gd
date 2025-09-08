@@ -248,7 +248,7 @@ func test_json_strings() -> void:
 		.verify()
 
 
-func test_data_types() -> void:
+func test_contain_assertions_with_different_types() -> void:
 	var test_data := """
 	{
 		"string_val": "hello world",
@@ -627,5 +627,81 @@ func test_must_begin_with_and_must_end_with_chaining() -> void:
 			.at("/url") \
 			.must_begin_with("https://") \
 			.must_end_with("/v2") \
+			.verify()
+	).is_failed()
+
+
+func test_type_checking_methods() -> void:
+	var test_data := """
+	{
+		"null_val": null,
+		"bool_val": true,
+		"int_val": 42,
+		"float_val": 3.14,
+		"string_val": "hello",
+		"array_val": [1, 2, 3],
+		"object_val": {"key": "value"}
+	}
+	"""
+
+	# Test each type assertion
+	assert_json(test_data).at("/null_val").is_null().verify()
+	assert_json(test_data).at("/bool_val").is_bool().verify()
+	assert_json(test_data).at("/int_val").is_number().verify()
+	assert_json(test_data).at("/float_val").is_number().verify()
+	assert_json(test_data).at("/string_val").is_string().verify()
+	assert_json(test_data).at("/array_val").is_array().verify()
+	assert_json(test_data).at("/object_val").is_object().verify()
+
+	# Test type assertion failures
+	assert_failure(func() -> void:
+		assert_json(test_data).at("/string_val").is_null().verify()
+	).is_failed()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).at("/int_val").is_bool().verify()
+	).is_failed()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).at("/bool_val").is_string().verify()
+	).is_failed()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).at("/object_val").is_array().verify()
+	).is_failed()
+
+
+func test_is_one_of_types() -> void:
+	var test_data := '{"mixed": [null, true, 42, "text", [], {}]}'
+
+	# Test single element matches one of multiple types
+	assert_json(test_data).at("/mixed/0").is_one_of_types([JSONAssert.Type.NULL, JSONAssert.Type.STRING]).verify()
+	assert_json(test_data).at("/mixed/1").is_one_of_types([JSONAssert.Type.BOOL, JSONAssert.Type.NUMBER]).verify()
+	assert_json(test_data).at("/mixed/2").is_one_of_types([JSONAssert.Type.NUMBER, JSONAssert.Type.STRING]).verify()
+	assert_json(test_data).at("/mixed/3").is_one_of_types([JSONAssert.Type.STRING, JSONAssert.Type.ARRAY]).verify()
+
+	# Test with all types
+	assert_json(test_data).at("/mixed/4").is_one_of_types([
+		JSONAssert.Type.ARRAY,
+		JSONAssert.Type.OBJECT,
+		JSONAssert.Type.STRING
+	]).verify()
+
+	# Test failures
+	assert_failure(func() -> void:
+		assert_json(test_data).at("/mixed/0").is_one_of_types([JSONAssert.Type.BOOL, JSONAssert.Type.NUMBER]).verify()
+	).is_failed()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).at("/mixed/3").is_one_of_types([JSONAssert.Type.NUMBER, JSONAssert.Type.ARRAY]).verify()
+	).is_failed()
+
+	# Test with no candidates
+	assert_failure(func() -> void:
+		assert_json(test_data) \
+			.at("/mixed") \
+			.with_objects() \
+			.containing("nonexistent", "value") \
+			.is_one_of_types([JSONAssert.Type.OBJECT]) \
 			.verify()
 	).is_failed()
