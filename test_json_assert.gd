@@ -705,3 +705,49 @@ func test_is_one_of_types() -> void:
 			.is_one_of_types([JSONAssert.Type.OBJECT]) \
 			.verify()
 	).is_failed()
+
+
+func test_is_empty_and_is_not_empty() -> void:
+	var test_data := """
+	{
+		"empty_string": "",
+		"empty_array": [],
+		"empty_object": {},
+		"non_empty_string": "hello",
+		"non_empty_array": [1, 2, 3],
+		"non_empty_object": {"key": "value"},
+		"number": 42
+	}
+	"""
+
+	assert_json(test_data).describe("empty string should be empty").at("/empty_string").is_empty().verify()
+	assert_json(test_data).describe("empty array should be empty").at("/empty_array").is_empty().verify()
+	assert_json(test_data).describe("empty object should be empty").at("/empty_object").is_empty().verify()
+
+	assert_json(test_data).describe("non-empty string should not be empty").at("/non_empty_string").is_not_empty().verify()
+	assert_json(test_data).describe("non-empty array should not be empty").at("/non_empty_array").is_not_empty().verify()
+	assert_json(test_data).describe("non-empty object should not be empty").at("/non_empty_object").is_not_empty().verify()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("non-empty string should fail is_empty").at("/non_empty_string").is_empty().verify()
+	).is_failed()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("non-empty array should fail is_empty").at("/non_empty_array").is_empty().verify()
+	).is_failed()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("empty string should fail is_not_empty").at("/empty_string").is_not_empty().verify()
+	).is_failed()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("empty array should fail is_not_empty").at("/empty_array").is_not_empty().verify()
+	).is_failed()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("number should fail is_empty type check").at("/number").is_empty().verify()
+	).is_failed()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("number should fail is_not_empty type check").at("/number").is_not_empty().verify()
+	).is_failed()
