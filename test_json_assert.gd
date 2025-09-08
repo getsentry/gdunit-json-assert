@@ -751,3 +751,34 @@ func test_is_empty_and_is_not_empty() -> void:
 	assert_failure(func() -> void:
 		assert_json(test_data).describe("number should fail is_not_empty type check").at("/number").is_not_empty().verify()
 	).is_failed()
+
+
+func test_has_size() -> void:
+	var test_data := """
+	{
+		"string_5": "hello",
+		"array_3": [1, 2, 3],
+		"object_2": {"a": 1, "b": 2},
+		"empty_array": [],
+		"empty_string": "",
+		"number": 42
+	}
+	"""
+
+	assert_json(test_data).describe("string should have size 5").at("/string_5").has_size(5).verify()
+	assert_json(test_data).describe("array should have size 3").at("/array_3").has_size(3).verify()
+	assert_json(test_data).describe("object should have size 2").at("/object_2").has_size(2).verify()
+	assert_json(test_data).describe("empty array should have size 0").at("/empty_array").has_size(0).verify()
+	assert_json(test_data).describe("empty string should have size 0").at("/empty_string").has_size(0).verify()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("string should fail incorrect size").at("/string_5").has_size(4).verify()
+	).is_failed()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("array should fail incorrect size").at("/array_3").has_size(2).verify()
+	).is_failed()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("number should fail has_size type check").at("/number").has_size(1).verify()
+	).is_failed()
