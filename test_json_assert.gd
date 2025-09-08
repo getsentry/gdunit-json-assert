@@ -830,3 +830,47 @@ func test_must_satisfy() -> void:
 	assert_failure(func() -> void:
 		assert_json(test_data).describe("number should fail < 0 predicate").at("/num").must_satisfy("is negative", func(x): return x < 0).verify()
 	).is_failed()
+
+
+func test_must_match_regex() -> void:
+	var test_data := """
+	{
+		"email": "user@example.com",
+		"phone": "123-456-7890",
+		"uuid": "550e8400-e29b-41d4-a716-446655440000",
+		"invalid_email": "not-an-email",
+		"number": 42
+	}
+	"""
+
+	var email_regex := RegEx.new()
+	email_regex.compile("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")
+
+	var phone_regex := RegEx.new()
+	phone_regex.compile("^\\d{3}-\\d{3}-\\d{4}$")
+
+	var uuid_regex := RegEx.new()
+	uuid_regex.compile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+
+	assert_json(test_data).describe("email should match email regex").at("/email").must_match_regex(email_regex).verify()
+	assert_json(test_data).describe("phone should match phone regex").at("/phone").must_match_regex(phone_regex).verify()
+	assert_json(test_data).describe("UUID should match UUID regex").at("/uuid").must_match_regex(uuid_regex).verify()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("invalid email should fail email regex").at("/invalid_email").must_match_regex(email_regex).verify()
+	).is_failed()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("email should fail phone regex").at("/email").must_match_regex(phone_regex).verify()
+	).is_failed()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("number should fail regex type check").at("/number").must_match_regex(email_regex).verify()
+	).is_failed()
+
+	var invalid_regex := RegEx.new()
+	invalid_regex.compile("[invalid")  # Missing closing bracket
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("invalid regex should fail").at("/email").must_match_regex(invalid_regex).verify()
+	).is_failed()
