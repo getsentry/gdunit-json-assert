@@ -819,3 +819,14 @@ func test_has_element() -> void:
 	assert_failure(func() -> void:
 		assert_json(test_data).describe("number should fail has_element type check").at("/number").has_element(42).verify()
 	).is_failed()
+
+
+func test_must_satisfy() -> void:
+	var test_data := '{"num": 42, "text": "hello"}'
+
+	assert_json(test_data).describe("number should satisfy > 0").at("/num").must_satisfy("is positive", func(x): return x > 0).verify()
+	assert_json(test_data).describe("string should satisfy length > 3").at("/text").must_satisfy("length > 3", func(s): return len(s) > 3).verify()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("number should fail < 0 predicate").at("/num").must_satisfy("is negative", func(x): return x < 0).verify()
+	).is_failed()
