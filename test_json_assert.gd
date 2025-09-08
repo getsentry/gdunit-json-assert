@@ -782,3 +782,40 @@ func test_has_size() -> void:
 	assert_failure(func() -> void:
 		assert_json(test_data).describe("number should fail has_size type check").at("/number").has_size(1).verify()
 	).is_failed()
+
+
+func test_has_element() -> void:
+	var test_data := """
+	{
+		"array_nums": [1, 2, 3, "hello"],
+		"array_mixed": [null, true, {"key": "value"}],
+		"string_text": "hello world",
+		"empty_array": [],
+		"number": 42
+	}
+	"""
+
+	assert_json(test_data).describe("array should contain number 2").at("/array_nums").has_element(2).verify()
+	assert_json(test_data).describe("array should contain string hello").at("/array_nums").has_element("hello").verify()
+	assert_json(test_data).describe("array should contain null").at("/array_mixed").has_element(null).verify()
+	assert_json(test_data).describe("array should contain boolean true").at("/array_mixed").has_element(true).verify()
+
+	assert_json(test_data).describe("string should contain hello").at("/string_text").has_element("hello").verify()
+	assert_json(test_data).describe("string should contain world").at("/string_text").has_element("world").verify()
+	assert_json(test_data).describe("string should contain space").at("/string_text").has_element(" ").verify()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("array should fail to find element 5").at("/array_nums").has_element(5).verify()
+	).is_failed()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("string should fail to find goodbye").at("/string_text").has_element("goodbye").verify()
+	).is_failed()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("empty array should fail to find element").at("/empty_array").has_element(1).verify()
+	).is_failed()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("number should fail has_element type check").at("/number").has_element(42).verify()
+	).is_failed()
