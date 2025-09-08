@@ -70,6 +70,8 @@ class EvaluationState:
 	var candidates: Array  # currently considered items
 	var steps: Array[Step] = []  # steps queued for evaluation
 	var results: Array[StepResult] # holds step evaluation results
+	var root_value: Variant # holds the root value of the JSON object being asserted
+	var nesting_depth: int = 0 # holds the current nesting depth
 
 	## Applies queued evaluation steps and returns true if all steps passed.
 	func apply_steps() -> bool:
@@ -117,21 +119,17 @@ class BranchResults:
 ## Encapsulates branching context and logic for either/or_else chains.
 class BranchingContext:
 	var branches: Array[JSONAssert] = []
-	var parent: JSONAssert
-
-	func _init(parent_scope: JSONAssert):
-		parent = parent_scope
 
 	func add_branch(branch: JSONAssert) -> void:
 		branches.append(branch)
 
-	func evaluate_branches(original: JSONAssert) -> BranchResults:
+	func evaluate_branches(state: EvaluationState) -> BranchResults:
 		var branch_statuses: Array[bool] = []
 		var combined_candidates: Array = []
 
 		# Evaluate all branches and combine candidates from passing branches
 		for branch: JSONAssert in branches:
-			branch._state.candidates = original._state.candidates.duplicate()
+			branch._state.candidates = state.candidates.duplicate()
 			var steps_passed: bool = branch._state.apply_steps()
 			branch_statuses.append(steps_passed)
 
@@ -143,10 +141,9 @@ class BranchingContext:
 
 		return BranchResults.new(branch_statuses, combined_candidates)
 
-	func format_branch_results(results: BranchResults, original: JSONAssert) -> String:
+	func format_branch_results(results: BranchResults, state: EvaluationState) -> String:
 		var show_statuses: bool = not results.chain_passed
 		var logs := PackedStringArray()
-		var nesting_depth: int = original._get_nesting_depth()
 
 		for i in branches.size():
 			var branch: JSONAssert = branches[i]
@@ -154,11 +151,11 @@ class BranchingContext:
 				# First branch result is handled by the main step
 				pass
 			elif results.branch_statuses[i]:
-				logs.append(original._state.format_result("or_else", Step.passed("passed"), nesting_depth, show_statuses))
+				logs.append(state.format_result("or_else", Step.passed("passed"), state.nesting_depth, show_statuses))
 			else:
-				logs.append(original._state.format_result("or_else", Step.failed("failed"), nesting_depth, show_statuses))
+				logs.append(state.format_result("or_else", Step.failed("failed"), state.nesting_depth, show_statuses))
 
-			logs.append_array(branch._state.get_step_results_pretty(show_statuses, nesting_depth + 1))
+			logs.append_array(branch._state.get_step_results_pretty(show_statuses, state.nesting_depth + 1))
 
 		var first_status = "passed" if results.branch_statuses[0] else "failed"
 		return first_status + "\n  " + "\n  ".join(logs)
@@ -176,14 +173,13 @@ enum Type {
 
 var _description: String
 var _state: EvaluationState
-var _root_value: Variant
 var _base: GdUnitAssertImpl
 var _invalid: bool = false
 var _finalized: bool = false
 var _line: int = 0
 
 # Branching support
-var _parent_scope: JSONAssert
+var _parent_scope: WeakRef
 var _branch_context_stack: Array[BranchingContext] = []
 
 
@@ -234,8 +230,9 @@ static func json_type_string(type: Type) -> String:
 
 
 func _init(json: Variant) -> void:
+	_finalized = false
 	_base = GdUnitAssertImpl.new(json)
-	GdUnitThreadManager.get_current_context().set_assert(self)
+	#GdUnitThreadManager.get_current_context().set_assert(self)
 	_line = GdUnitAssertions.get_line_number()
 
 	_state = EvaluationState.new()
@@ -245,21 +242,22 @@ func _init(json: Variant) -> void:
 		if parsed_value == null and json.strip_edges() != "null":
 			_invalid = true
 			_state.candidates = []
-			_root_value = null
+			_state.root_value = null
 		else:
 			_state.candidates = [parsed_value]
-			_root_value = parsed_value
+			_state.root_value = parsed_value
 	else:
 		_state.candidates = [json]
-		_root_value = json
+		_state.root_value = json
 
 
-func _notification(event :int) -> void:
-	if event == NOTIFICATION_PREDELETE:
-		if not _finalized:
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		var is_root: bool = not _parent_scope
+		if not _finalized and is_root:
 			_base.report_error("assert_json() was not finalized", _line)
 		if _base != null:
-			_base.notification(event)
+			_base.notification(what)
 			_base = null
 
 
@@ -271,8 +269,9 @@ func _add_step(step: Step) -> void:
 func _fork() -> JSONAssert:
 	var fork := JSONAssert.new(null)
 	fork._state.candidates = _state.candidates.duplicate()
-	fork._parent_scope = self
-	fork._root_value = _root_value
+	fork._state.root_value = _state.root_value
+	fork._state.nesting_depth = _state.nesting_depth + 1
+	fork._parent_scope = weakref(self)
 	return fork
 
 
@@ -311,7 +310,7 @@ func at(path: String) -> JSONAssert:
 
 		# If path starts with "/", use root value; otherwise use current context
 		if path.begins_with("/"):
-			candidates.append(_root_value)
+			candidates.append(state.root_value)
 		else:
 			candidates.append_array(state.candidates)
 
@@ -559,7 +558,7 @@ func must_contain(path: String, specific_value: Variant = null) -> JSONAssert:
 		if state.candidates.size() == 0:
 			return Step.failed("no candidates")
 		var num_found: int = 0
-		for item in _state.candidates:
+		for item in state.candidates:
 			var result: PathResult = _resolve_path(item, path)
 			if result.found:
 				if specific_value and not _are_equal(specific_value, result.value):
@@ -585,7 +584,7 @@ func must_not_contain(path: String, specific_value: Variant = null) -> JSONAsser
 		if state.candidates.size() == 0:
 			return Step.failed("no candidates")
 		var num_found: int = 0
-		for item in _state.candidates:
+		for item in state.candidates:
 			var result: PathResult = _resolve_path(item, path)
 			if result.found and (specific_value == null or _are_equal(specific_value, result.value)):
 				num_found += 1
@@ -752,7 +751,7 @@ func at_most(n: int) -> void:
 ##	.end()
 ## [/codeblock]
 func either() -> JSONAssert:
-	var context := BranchingContext.new(self)
+	var context := BranchingContext.new()
 	_branch_context_stack.push_back(context)
 	var fork: JSONAssert = _fork()
 	context.add_branch(fork)
@@ -787,20 +786,20 @@ func end() -> JSONAssert:
 		return original
 
 	var context: BranchingContext = original._branch_context_stack.pop_back()  # Remove current context
-	var step: Step = _create_branching_step(original, context)
+	var step: Step = original._create_branching_step(context)
 	original._add_step(step)
 	return original
 
 
 ## Creates a Step for the branching evaluation.
-func _create_branching_step(original: JSONAssert, context: BranchingContext) -> Step:
-	var run_callable := func(_unused_state: EvaluationState) -> StepResult:
-		var results: BranchResults = context.evaluate_branches(original)
-		var log_message: String = context.format_branch_results(results, original)
+func _create_branching_step(context: BranchingContext) -> Step:
+	var run_callable := func(state: EvaluationState) -> StepResult:
+		var results: BranchResults = context.evaluate_branches(state)
+		var log_message: String = context.format_branch_results(results, state)
 
 		# Update original candidates with combined results from all passing branches
 		if results.chain_passed and not results.combined_candidates.is_empty():
-			original._state.candidates = results.combined_candidates
+			state.candidates = results.combined_candidates
 
 		if results.chain_passed:
 			return Step.passed(log_message)
@@ -812,7 +811,7 @@ func _create_branching_step(original: JSONAssert, context: BranchingContext) -> 
 
 ## Gets the original JSONAssert instance (root of the branching chain).
 func _get_original_scope() -> JSONAssert:
-	return _parent_scope if _parent_scope else self
+	return _parent_scope.get_ref() if _parent_scope else self
 
 
 ## Returns a formatted failure report.
@@ -829,7 +828,7 @@ Final survivors:
 ## Returns a PathResult indicating whether the path was found and its value.
 ## The path uses forward slashes as separators (e.g., "/users/0/name").
 ## For arrays, use numeric indices to access elements; negative indices access from the end.
-func _resolve_path(data: Variant, path: String) -> PathResult:
+static func _resolve_path(data: Variant, path: String) -> PathResult:
 	if path.is_empty() or path == "/":
 		return PathResult.found_value(data)
 	var parts: PackedStringArray = path.rstrip("/").lstrip("/").split("/")
@@ -851,7 +850,7 @@ func _resolve_path(data: Variant, path: String) -> PathResult:
 
 
 ## Returns true if two JSON-interpreted values are equal.
-func _are_equal(v1: Variant, v2: Variant) -> bool:
+static func _are_equal(v1: Variant, v2: Variant) -> bool:
 	# NOTE: All numbers in JSON content are deserialized as float.
 	if json_type(v1) == Type.NUMBER and json_type(v2) == Type.NUMBER and float(v1) == float(v2):
 		return true
@@ -872,7 +871,7 @@ func _are_equal(v1: Variant, v2: Variant) -> bool:
 	return json_type(v1) == json_type(v2) and v1 == v2
 
 
-func _normalize_value(v: Variant) -> Variant:
+static func _normalize_value(v: Variant) -> Variant:
 	if json_type(v) == Type.NUMBER:
 		return float(v)
 	return v
@@ -882,6 +881,6 @@ func _get_nesting_depth() -> int:
 	var depth: int = -1
 	var parent: JSONAssert = self
 	while parent:
-		parent = parent._parent_scope
+		parent = parent._parent_scope.get_ref() if parent._parent_scope else null
 		depth += 1
 	return depth

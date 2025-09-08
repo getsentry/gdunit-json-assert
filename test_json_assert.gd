@@ -166,6 +166,19 @@ func test_finalizers() -> void:
 	).is_failed()
 
 
+func test_failing_to_finalize() -> void:
+	assert_failure(func() -> void:
+		assert_json(fixture).describe("should fail if not finalized (no branching)").at("/")
+	).is_failed()
+
+	assert_failure(func() -> void:
+		assert_json(fixture).describe("should fail if not finalized (with branching)") \
+			.either().at("/") \
+			.or_else().at("/") \
+			.end()
+	).is_failed()
+
+
 func test_chaining() -> void:
 	assert_json(fixture).describe("complex chain should find pilot Taras") \
 		.at("/crew") \
