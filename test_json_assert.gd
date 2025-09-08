@@ -874,3 +874,48 @@ func test_must_match_regex() -> void:
 	assert_failure(func() -> void:
 		assert_json(test_data).describe("invalid regex should fail").at("/email").must_match_regex(invalid_regex).verify()
 	).is_failed()
+
+
+func test_must_selected() -> void:
+	var test_data := """
+	{
+		"users": [
+			{"name": "Alice", "active": true},
+			{"name": "Bob", "active": false},
+			{"name": "Charlie", "active": true}
+		]
+	}
+	"""
+
+	assert_json(test_data).describe("root should have 1 candidate").must_selected(1).verify()
+
+	assert_json(test_data).describe("users array should have 1 candidate") \
+		.at("/users") \
+		.must_selected(1) \
+		.with_objects() \
+		.must_selected(3) \
+		.verify()
+
+	assert_json(test_data).describe("filtered users should have 2 candidates") \
+		.at("/users") \
+		.with_objects() \
+		.containing("active", true) \
+		.must_selected(2) \
+		.verify()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("wrong count should fail") \
+			.at("/users") \
+			.with_objects() \
+			.must_selected(2) \
+			.verify()
+	).is_failed()
+
+	assert_failure(func() -> void:
+		assert_json(test_data).describe("empty set should fail must_selected(1)") \
+			.at("/users") \
+			.with_objects() \
+			.containing("active", "unknown") \
+			.must_selected(1) \
+			.verify()
+	).is_failed()
