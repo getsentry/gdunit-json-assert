@@ -187,7 +187,7 @@ var _parent_scope: JSONAssert
 var _branch_context_stack: Array[BranchingContext] = []
 
 
-static func assert_json(json: String) -> JSONAssert:
+static func assert_json(json: Variant) -> JSONAssert:
 	return JSONAssert.new(json)
 
 
