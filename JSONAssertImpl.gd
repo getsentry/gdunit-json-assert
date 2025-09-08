@@ -498,7 +498,8 @@ func has_size(expected_size: int) -> JSONAssert:
 ## Asserts that each candidate contains the expected element.
 ## Supports arrays and strings.
 func has_element(expected_element: Variant) -> JSONAssert:
-	var step := Step.new("must_contain_element %s" % expected_element, func(state: EvaluationState) -> StepResult:
+	var step := Step.new("has_element %s" % expected_element, func(state: EvaluationState) -> StepResult:
+		var expected_element_normalized: Variant = _normalize_value(expected_element)
 		var num_candidates: int = state.candidates.size()
 		if num_candidates == 0:
 			return Step.failed("no candidates")
@@ -506,7 +507,7 @@ func has_element(expected_element: Variant) -> JSONAssert:
 		for c in state.candidates:
 			var type: Type = json_type(c)
 			if type in [Type.ARRAY, Type.STRING]:
-				if expected_element in c:
+				if expected_element_normalized in c:
 					num_satisfied += 1
 			else:
 				return Step.failed("expected array or string, but found " + json_type_string(type))
@@ -869,6 +870,12 @@ func _are_equal(v1: Variant, v2: Variant) -> bool:
 				return false
 		return true
 	return json_type(v1) == json_type(v2) and v1 == v2
+
+
+func _normalize_value(v: Variant) -> Variant:
+	if json_type(v) == Type.NUMBER:
+		return float(v)
+	return v
 
 
 func _get_nesting_depth() -> int:
