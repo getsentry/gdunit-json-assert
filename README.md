@@ -6,6 +6,8 @@ At the time of writing, the code was tested to work with gdUnit 5.1.0.
 
 ## Overview
 
+JSONAssert works on top of the gdUnit4 testing framework, introducing query & assertion engine to test JSON content. It's implemented as an assertion class for gdUnit4.
+
 JSONAssert provides 4 broad categories of operations:
 
 - **Selectors** like `at()` and `with_objects()` navigate and transform the current candidate set by selecting new values
@@ -17,7 +19,9 @@ JSONAssert provides 4 broad categories of operations:
 
 ## Quick Start
 
-You can add this to your test suites:
+You'll need [gdUnit4](https://github.com/MikeSchulze/gdUnit4) addon installed in your project. Add the files from this repo to your project.
+
+You can add this helper function to your test suites:
 ```gdscript
 extends GdUnitTestSuite
 
