@@ -293,6 +293,30 @@ func failure_message() -> String:
 	return _base.failure_message()
 
 
+func is_equal(expected: Variant) -> JSONAssert:
+	@warning_ignore("return_value_discarded")
+	must_be(expected)
+	return self
+
+
+func is_not_equal(expected: Variant) -> JSONAssert:
+	@warning_ignore("return_value_discarded")
+	must_not_be(expected)
+	return self
+
+
+func override_failure_message(message: String) -> JSONAssert:
+	@warning_ignore("return_value_discarded")
+	_base.override_failure_message(message)
+	return self
+
+
+func append_failure_message(message: String) -> JSONAssert:
+	@warning_ignore("return_value_discarded")
+	_base.append_failure_message(message)
+	return self
+
+
 ## Sets description for the assertion.
 func describe(test_description: String) -> JSONAssert:
 	_description = test_description
@@ -397,12 +421,31 @@ func _is_type(expected_type: Type, step_name: String) -> JSONAssert:
 	_add_step(step)
 	return self
 
+
+func _is_not_type(expected_type: Type, step_name: String) -> JSONAssert:
+	var step := Step.new(step_name, func(state: EvaluationState) -> StepResult:
+		var num_candidates: int = state.candidates.size()
+		if num_candidates == 0:
+			return Step.failed("expected at least 1 candidate, but got " + str(num_candidates))
+		for c in state.candidates:
+			var actual_type: Type = json_type(c)
+			if expected_type == actual_type:
+				return Step.failed("expected not " + json_type_string(expected_type) + ", but got " + json_type_string(actual_type))
+		return Step.passed()
+	)
+	_add_step(step)
+	return self
+
+
 ## Asserts that the current set contains only candidates with the specified type.
 func is_type(expected_type: Type) -> JSONAssert:
 	return _is_type(expected_type, "is_type " + json_type_string(expected_type))
 
 ## Asserts that the current set contains only nulls.
 func is_null() -> JSONAssert: return _is_type(Type.NULL, "is_null")
+
+## Asserts that the current set does not contain any nulls.
+func is_not_null() -> JSONAssert: return _is_not_type(Type.NULL, "is_not_null")
 
 ## Asserts that the current set contains only booleans.
 func is_bool() -> JSONAssert: return _is_type(Type.BOOL, "is_bool")
